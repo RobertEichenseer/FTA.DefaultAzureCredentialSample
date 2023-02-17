@@ -1,0 +1,61 @@
+################################################
+# Step 1:   Logon to Azure 
+#           Get and set Azure subscription 
+################################################
+# Login to subscription
+az login
+
+# Retrieve default subscription id
+$subscriptionId = (
+    (
+        az account list `
+            --query "[?isDefault]" 
+    ) | ConvertFrom-Json
+).id
+
+# Set Subscription
+az account set --subscription $subscriptionId
+
+################################################
+# Step 2:   Create unifier
+################################################
+$random = Get-Random -Minimum 1 -Maximum 999
+
+################################################
+# Step 3:   Create Resource Group
+################################################
+$resourceGroup = "FTA.DefaultAzureCredentialSample"
+$location = "WestEurope"
+
+az group create `
+    --location $location `
+    --resource-group $resourceGroup
+
+################################################
+# Step 4:   Create IoT Hub 
+################################################
+$hubName = "IoTHubDefaultAzureCredential$random"
+$hubPartitionCount = "2"
+$hubSku = "S1"
+
+az iot hub create `
+    --name $hubName `
+    --resource-group $resourceGroup `
+    --location $location `
+    --partition-count $hubPartitionCount `
+    --sku $hubSKU
+
+################################################
+# Step 5:   Get IoT Hub Url
+################################################
+$hubUrl = (az iot hub show `
+    --name $hubName `
+    --query properties.hostName `
+    --output tsv)
+
+Write-Output "######## IoT Hub Instance Url: $hubUrl ########"
+
+################################################
+# Step 6:   Role Assignments
+################################################
+#TODO TODO TODO 
