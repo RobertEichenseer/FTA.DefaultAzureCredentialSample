@@ -16,6 +16,13 @@ $subscriptionId = (
 # Set Subscription
 az account set --subscription $subscriptionId
 
+# Get signed in user
+$signedInUserId = (
+    az ad signed-in-user show `
+        --query id `
+        --output tsv
+)
+
 ################################################
 # Step 2:   Create unifier
 ################################################
@@ -24,7 +31,7 @@ $random = Get-Random -Minimum 1 -Maximum 999
 ################################################
 # Step 3:   Create Resource Group
 ################################################
-$resourceGroup = "FTA.DefaultAzureCredentialSample"
+$resourceGroup = "FTA.RBACSample"
 $location = "WestEurope"
 
 az group create `
@@ -34,7 +41,7 @@ az group create `
 ################################################
 # Step 4:   Create IoT Hub 
 ################################################
-$hubName = "IoTHubDefaultAzureCredential$random"
+$hubName = "IoTHubRBAC$random"
 $hubPartitionCount = "2"
 $hubSku = "S1"
 
@@ -45,17 +52,107 @@ az iot hub create `
     --partition-count $hubPartitionCount `
     --sku $hubSKU
 
+
 ################################################
-# Step 5:   Get IoT Hub Url
+# Step 5:   Create IoT Hub Device
 ################################################
+$hubDeviceId = "device01"
+
+az iot hub device-identity create `
+    --device-id $hubDeviceId `
+    --hub-name $hubName
+
+
+################################################
+# Step 6:   Get IoT Hub Url & Id
+################################################
+$hubId = ( `
+    az iot hub show `
+        --name $hubName `
+        --resource-group $resourceGroup `
+        --query id `
+        --output tsv
+)
+
 $hubUrl = (az iot hub show `
     --name $hubName `
     --query properties.hostName `
-    --output tsv)
-
+    --output tsv
+)
 Write-Output "######## IoT Hub Instance Url: $hubUrl ########"
 
 ################################################
-# Step 6:   Role Assignments
+# Step 7:   IoT Hub role assignments
 ################################################
-#TODO TODO TODO 
+$hubRole = "Owner"
+
+az role assignment create `
+    --role $hubRole `
+    --assignee $signedInUserId `
+    --scope $hubId 
+
+################################################
+# Step 8:   Create Storage Account & Container
+################################################
+$storageName = "storagerbac$random"
+$storageContainerName = "rbacdemo"
+
+az storage account create `
+    --name $storageName `
+    --resource-group $resourceGroup 
+
+$storageConnectionString = ( `
+    az storage account show-connection-string `
+        --name $storageName `
+        --resource-group $resourceGroup `
+        --query connectionString `
+        --output tsv
+)
+
+az storage container create `
+    --name $storageContainerName `
+    --account-name $storageName `
+    --connection-string $storageConnectionString
+
+az storage container show `
+    --name $storageContainerName `
+    --account-name $storageName `
+    --connection-string $storageConnectionString
+    
+$storageAccountId = ( `
+    az storage account show `
+        --name $storageName `
+        --resource-group $resourceGroup `
+        --query id `
+        --output tsv `
+)
+
+################################################
+# Step 9:   Create storage container role assignment
+################################################
+$containerRole = "Owner"
+
+az role assignment create `
+    --role $containerRole `
+    --assignee $signedInUserId `
+    --scope $storageAccountId 
+
+
+################################################
+# HOUSE KEEPING
+################################################
+
+# Delete role assignments
+$storageRole = "Storage Blob Data Contributor"
+az role assignment delete `
+    --assignee $signedInUserId `
+    --role $storageRole `
+    --scope $storageAccountId
+
+# Delete IoT Hub role assignments
+$hubRole = "Owner"
+
+az role assignment delete `
+    --role $hubRole `
+    --assignee $signedInUserId `
+    --scope $hubId 
