@@ -16,6 +16,13 @@ $subscriptionId = (
 # Set Subscription
 az account set --subscription $subscriptionId
 
+# Get signed in user
+$signedInUserId = (
+    az ad signed-in-user show `
+        --query id `
+        --output tsv
+)
+
 ################################################
 # Step 2:   Create unifier
 ################################################
@@ -24,7 +31,7 @@ $random = Get-Random -Minimum 1 -Maximum 999
 ################################################
 # Step 3:   Create Resource Group
 ################################################
-$resourceGroup = "FTA.DefaultAzureCredentialSample"
+$resourceGroup = "FTA.RBACSample"
 $location = "WestEurope"
 
 az group create `
@@ -34,7 +41,7 @@ az group create `
 ################################################
 # Step 4:   Create IoT Hub 
 ################################################
-$hubName = "IoTHubDefaultAzureCredential$random"
+$hubName = "IoTHubRBAC$random"
 $hubPartitionCount = "2"
 $hubSku = "S1"
 
@@ -45,17 +52,171 @@ az iot hub create `
     --partition-count $hubPartitionCount `
     --sku $hubSKU
 
+
 ################################################
-# Step 5:   Get IoT Hub Url
+# Step 5:   Create IoT Hub Device
 ################################################
+$hubDeviceId = "device01"
+
+az iot hub device-identity create `
+    --device-id $hubDeviceId `
+    --hub-name $hubName
+
+
+################################################
+# Step 6:   Get IoT Hub Url & Id
+################################################
+$hubId = ( `
+    az iot hub show `
+        --name $hubName `
+        --resource-group $resourceGroup `
+        --query id `
+        --output tsv
+)
+
 $hubUrl = (az iot hub show `
     --name $hubName `
     --query properties.hostName `
-    --output tsv)
-
-Write-Output "######## IoT Hub Instance Url: $hubUrl ########"
+    --output tsv
+)
+Write-Output "IoT Hub Instance Url: $hubUrl"
 
 ################################################
-# Step 6:   Role Assignments
+# Step 7:   IoT Hub role assignments
 ################################################
-#TODO TODO TODO 
+$hubRole = "Owner"
+
+az role assignment create `
+    --role $hubRole `
+    --assignee $signedInUserId `
+    --scope $hubId 
+
+################################################
+# Step 8:   Create Storage Account & Container
+################################################
+$storageName = "storagerbac$random"
+$storageContainerName = "rbacdemo"
+
+az storage account create `
+    --name $storageName `
+    --resource-group $resourceGroup 
+
+$storageConnectionString = ( `
+    az storage account show-connection-string `
+        --name $storageName `
+        --resource-group $resourceGroup `
+        --query connectionString `
+        --output tsv
+)
+
+az storage container create `
+    --name $storageContainerName `
+    --account-name $storageName `
+    --connection-string $storageConnectionString
+
+az storage container show `
+    --name $storageContainerName `
+    --account-name $storageName `
+    --connection-string $storageConnectionString
+    
+$storageAccountId = ( `
+    az storage account show `
+        --name $storageName `
+        --resource-group $resourceGroup `
+        --query id `
+        --output tsv `
+)
+
+################################################
+# Step 9:   Create storage container role assignment
+################################################
+$containerRole = "Owner"
+
+az role assignment create `
+    --role $containerRole `
+    --assignee $signedInUserId `
+    --scope $storageAccountId 
+
+
+################################################
+# Step 10:   Create Service Principal
+################################################
+$principalName = "RobEichRBACSample"
+$principalRole = "Owner"
+
+# Create principal & add role assignment for storage
+$principalInfo = ( `
+    az ad sp create-for-rbac `
+        --display-name $principalName `
+        --role $principalRole `
+        --scopes $storageAccountId
+)
+
+$principalAppId = ($principalInfo | ConvertFrom-Json).appId
+$principalPassword = ($principalInfo | ConvertFrom-Json).password
+$principalTenant = ($principalInfo | ConvertFrom-Json).tenant
+
+# Add role assignment for IoT Hub
+az role assignment create `
+    --role $principalRole `
+    --assignee $principalAppId `
+    --scope $hubId 
+
+Write-Output "Service Principal AppId: $principalAppId"
+Write-Output "Service Principal Password: $principalPassword"
+Write-Output "Service Principal Tenant: $principalTenant"
+
+
+###TEST
+$testScope = "/subscriptions/25838890-c3d7-41ff-ad7f-829a1694cf90/resourceGroups/FTA.RBACSample/" #providers/Microsoft.Storage/"
+az role assignment create `
+    --role $principalRole `
+    --assignee $principalAppId `
+    --scope $testScope 
+
+
+################################################
+# Step 11:   Set environment variables for demo app
+################################################
+# Service Principal
+$Env:AZURE_CLIENT_ID = $principalAppId
+$Env:AZURE_TENANT_ID = $principalTenant
+$ENV:AZURE_CLIENT_SECRET = $principalPassword
+
+# Azure resource information
+$Env:RBACSAMPLE_STORAGE_NAME = $storageName
+$ENV:RBACSAMPLE_HUB_NAME = $hubName
+
+dotnet run --project ./src/DefaultAzureCredential.Client/DefaultAzureCredential.Client.csproj $principalAppId $principalAppId $principalAppId $principalAppId
+
+################################################
+# HOUSE KEEPING
+################################################
+# Delete storage user role assignments
+$storageRole = "Storage Blob Data Contributor"
+az role assignment delete `
+    --assignee $signedInUserId `
+    --role $storageRole `
+    --scope $storageAccountId
+
+# Delete IoT Hub user role assignments
+$hubRole = "Owner"
+az role assignment delete `
+    --role $hubRole `
+    --assignee $signedInUserId `
+    --scope $hubId 
+
+# Delete Service Principal and role assignments
+az role assignment delete `
+    --role $principalRole `
+    --assignee $principalAppId `
+    --scope $hubId 
+
+az role assignment delete `
+    --role $principalRole `
+    --assignee $principalAppId `
+    --scope $storageAccountId 
+
+az ad sp delete `
+    --id $principalAppId
+

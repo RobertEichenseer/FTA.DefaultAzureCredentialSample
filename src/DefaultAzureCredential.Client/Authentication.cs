@@ -1,29 +1,65 @@
+using System.IdentityModel.Tokens.Jwt;
+using Azure; 
+using Azure.Core;
 using Azure.Identity;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Microsoft.Azure.Devices;
+using Microsoft.IdentityModel.Tokens;
 
 internal class Authentication
 {
-    string _hubUrl = ""; 
-
-    public Authentication(string hubUrl)
+    async internal Task GetUpnFromToken(DefaultAzureCredential defaultAzureCredential, string scope)
     {
-        _hubUrl = hubUrl; 
+        try {
+            AccessToken accessToken = await defaultAzureCredential.GetTokenAsync(
+                new TokenRequestContext(new string[] {scope})
+            );
+            JwtSecurityTokenHandler jwtSecurityTokenHandler = new JwtSecurityTokenHandler(); 
+            JwtSecurityToken jwtSecurityToken = (JwtSecurityToken)jwtSecurityTokenHandler.ReadToken(accessToken.Token);
+            Console.Write($"UPN from JWT Token: {jwtSecurityToken.Claims.First(c => c.Type=="upn").Value}"); 
+        } catch (Exception exE) {
+            Console.WriteLine($"Exception: {exE.Message}");
+        }
     }
 
-    async internal Task<bool> ListDevices(DefaultAzureCredential defaultAzureCredential) 
+
+    internal async Task ListBlobStorageContainer(DefaultAzureCredential defaultAzureCredential, string storageAccountName)
     {
-        var registryManager = RegistryManager.Create(_hubUrl, defaultAzureCredential); 
+
+        Uri blobUri = new Uri($"https://{storageAccountName}.blob.core.windows.net");
+
+        BlobServiceClient blobServiceClient = new BlobServiceClient(blobUri, defaultAzureCredential);   
+
+        try {
+            IAsyncEnumerable<Page<BlobContainerItem>> resultPages = 
+                blobServiceClient.GetBlobContainersAsync()
+                .AsPages(default, 10);
+
+            await foreach (Page<BlobContainerItem> containerPage in resultPages)
+            {
+                foreach (BlobContainerItem containerItem in containerPage.Values)
+                {
+                    Console.WriteLine($"...Container Name: {containerItem.Name}"); 
+                }
+            }
+            Console.WriteLine("Storage access succeeded");
+        } catch (AuthenticationFailedException exE){
+            Console.WriteLine($"Authentication failed: {exE.Message}");
+        }
+    }
+
+    async internal Task ListIoTHubDevices(string hubUrl, DefaultAzureCredential defaultAzureCredential) 
+    {
+        RegistryManager registryManager = RegistryManager.Create(hubUrl, defaultAzureCredential); 
         IQuery iQuery = registryManager.CreateQuery("Select * from devices", 10); 
         while (iQuery.HasMoreResults)
         {
             IEnumerable<string> devices = await iQuery.GetNextAsJsonAsync();
             foreach (string device in devices) {
-                Console.WriteLine(device);
+                Console.WriteLine($"...IoT Hub device: {devices}");
             }
         }
-        
-
-        return true; 
     }
 
 }

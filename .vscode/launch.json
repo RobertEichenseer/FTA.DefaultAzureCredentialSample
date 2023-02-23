@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/src/DefaultAzureCredential.Client/bin/Debug/net7.0/DefaultAzureCredential.Client.dll",
+            "program": "${workspaceFolder}/src/DefaultAzureCredential.Client/bin/Debug/net7/DefaultAzureCredential.Client.dll",
             "args": ["IoTHubDefaultAzureCredential242.azure-devices.net"],
             "cwd": "${workspaceFolder}/src/DefaultAzureCredential.Client",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
