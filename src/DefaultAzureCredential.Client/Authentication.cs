@@ -9,57 +9,57 @@ using Microsoft.IdentityModel.Tokens;
 
 internal class Authentication
 {
-    async internal Task<string> GetUpnFromToken(DefaultAzureCredential defaultAzureCredential)
+    async internal Task GetUpnFromToken(DefaultAzureCredential defaultAzureCredential, string scope)
     {
-        string claim = "https://storage.azure.com"; 
-        AccessToken accessToken = await defaultAzureCredential.GetTokenAsync(
-            new TokenRequestContext(new string[] {claim})
-        );
-        JwtSecurityTokenHandler jwtSecurityTokenHandler = new JwtSecurityTokenHandler(); 
-        JwtSecurityToken jwtSecurityToken = (JwtSecurityToken)jwtSecurityTokenHandler.ReadToken(accessToken.Token);
-        return jwtSecurityToken.Claims.First(c => c.Type=="upn").Value; 
+        try {
+            AccessToken accessToken = await defaultAzureCredential.GetTokenAsync(
+                new TokenRequestContext(new string[] {scope})
+            );
+            JwtSecurityTokenHandler jwtSecurityTokenHandler = new JwtSecurityTokenHandler(); 
+            JwtSecurityToken jwtSecurityToken = (JwtSecurityToken)jwtSecurityTokenHandler.ReadToken(accessToken.Token);
+            Console.Write($"UPN from JWT Token: {jwtSecurityToken.Claims.First(c => c.Type=="upn").Value}"); 
+        } catch (Exception exE) {
+            Console.WriteLine($"Exception: {exE.Message}");
+        }
     }
 
 
-    internal async Task<List<string>> ListBlobStorageContainer(DefaultAzureCredential defaultAzureCredential, string storageAccountName)
+    internal async Task ListBlobStorageContainer(DefaultAzureCredential defaultAzureCredential, string storageAccountName)
     {
-
-        List<string> blobContainer = new List<string>(); 
 
         Uri blobUri = new Uri($"https://{storageAccountName}.blob.core.windows.net");
 
         BlobServiceClient blobServiceClient = new BlobServiceClient(blobUri, defaultAzureCredential);   
 
-        IAsyncEnumerable<Page<BlobContainerItem>> resultPages = 
-            blobServiceClient.GetBlobContainersAsync()
-            .AsPages(default, 10);
+        try {
+            IAsyncEnumerable<Page<BlobContainerItem>> resultPages = 
+                blobServiceClient.GetBlobContainersAsync()
+                .AsPages(default, 10);
 
-        await foreach (Page<BlobContainerItem> containerPage in resultPages)
-        {
-            foreach (BlobContainerItem containerItem in containerPage.Values)
+            await foreach (Page<BlobContainerItem> containerPage in resultPages)
             {
-                blobContainer.Add(containerItem.Name); 
+                foreach (BlobContainerItem containerItem in containerPage.Values)
+                {
+                    Console.WriteLine($"...Container Name: {containerItem.Name}"); 
+                }
             }
+            Console.WriteLine("Storage access succeeded");
+        } catch (AuthenticationFailedException exE){
+            Console.WriteLine($"Authentication failed: {exE.Message}");
         }
-        return blobContainer; 
-
     }
 
-    async internal Task<List<string>> ListIoTHubDevices(string hubUrl, DefaultAzureCredential defaultAzureCredential) 
+    async internal Task ListIoTHubDevices(string hubUrl, DefaultAzureCredential defaultAzureCredential) 
     {
-        List<string> registeredDevices = new List<string>(); 
-
         RegistryManager registryManager = RegistryManager.Create(hubUrl, defaultAzureCredential); 
         IQuery iQuery = registryManager.CreateQuery("Select * from devices", 10); 
         while (iQuery.HasMoreResults)
         {
             IEnumerable<string> devices = await iQuery.GetNextAsJsonAsync();
             foreach (string device in devices) {
-                registeredDevices.Add(device);
+                Console.WriteLine($"...IoT Hub device: {devices}");
             }
         }
-
-        return registeredDevices; 
     }
 
 }

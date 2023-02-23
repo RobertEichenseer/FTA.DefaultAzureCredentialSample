@@ -79,7 +79,7 @@ $hubUrl = (az iot hub show `
     --query properties.hostName `
     --output tsv
 )
-Write-Output "######## IoT Hub Instance Url: $hubUrl ########"
+Write-Output "IoT Hub Instance Url: $hubUrl"
 
 ################################################
 # Step 7:   IoT Hub role assignments
@@ -139,20 +139,84 @@ az role assignment create `
 
 
 ################################################
+# Step 10:   Create Service Principal
+################################################
+$principalName = "RobEichRBACSample"
+$principalRole = "Owner"
+
+# Create principal & add role assignment for storage
+$principalInfo = ( `
+    az ad sp create-for-rbac `
+        --display-name $principalName `
+        --role $principalRole `
+        --scopes $storageAccountId
+)
+
+$principalAppId = ($principalInfo | ConvertFrom-Json).appId
+$principalPassword = ($principalInfo | ConvertFrom-Json).password
+$principalTenant = ($principalInfo | ConvertFrom-Json).tenant
+
+# Add role assignment for IoT Hub
+az role assignment create `
+    --role $principalRole `
+    --assignee $principalAppId `
+    --scope $hubId 
+
+Write-Output "Service Principal AppId: $principalAppId"
+Write-Output "Service Principal Password: $principalPassword"
+Write-Output "Service Principal Tenant: $principalTenant"
+
+
+###TEST
+$testScope = "/subscriptions/25838890-c3d7-41ff-ad7f-829a1694cf90/resourceGroups/FTA.RBACSample/" #providers/Microsoft.Storage/"
+az role assignment create `
+    --role $principalRole `
+    --assignee $principalAppId `
+    --scope $testScope 
+
+
+################################################
+# Step 11:   Set environment variables for demo app
+################################################
+# Service Principal
+$Env:AZURE_CLIENT_ID = $principalAppId
+$Env:AZURE_TENANT_ID = $principalTenant
+$ENV:AZURE_CLIENT_SECRET = $principalPassword
+
+# Azure resource information
+$Env:RBACSAMPLE_STORAGE_NAME = $storageName
+$ENV:RBACSAMPLE_HUB_NAME = $hubName
+
+dotnet run --project ./src/DefaultAzureCredential.Client/DefaultAzureCredential.Client.csproj $principalAppId $principalAppId $principalAppId $principalAppId
+
+################################################
 # HOUSE KEEPING
 ################################################
-
-# Delete role assignments
+# Delete storage user role assignments
 $storageRole = "Storage Blob Data Contributor"
 az role assignment delete `
     --assignee $signedInUserId `
     --role $storageRole `
     --scope $storageAccountId
 
-# Delete IoT Hub role assignments
+# Delete IoT Hub user role assignments
 $hubRole = "Owner"
-
 az role assignment delete `
     --role $hubRole `
     --assignee $signedInUserId `
     --scope $hubId 
+
+# Delete Service Principal and role assignments
+az role assignment delete `
+    --role $principalRole `
+    --assignee $principalAppId `
+    --scope $hubId 
+
+az role assignment delete `
+    --role $principalRole `
+    --assignee $principalAppId `
+    --scope $storageAccountId 
+
+az ad sp delete `
+    --id $principalAppId
+
