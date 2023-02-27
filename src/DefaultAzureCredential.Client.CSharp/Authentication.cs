@@ -48,18 +48,4 @@ internal class Authentication
             Console.WriteLine($"Authentication failed: {exE.Message}");
         }
     }
-
-    async internal Task ListIoTHubDevices(string hubUrl, DefaultAzureCredential defaultAzureCredential) 
-    {
-        RegistryManager registryManager = RegistryManager.Create(hubUrl, defaultAzureCredential); 
-        IQuery iQuery = registryManager.CreateQuery("Select * from devices", 10); 
-        while (iQuery.HasMoreResults)
-        {
-            IEnumerable<string> devices = await iQuery.GetNextAsJsonAsync();
-            foreach (string device in devices) {
-                Console.WriteLine($"...IoT Hub device: {devices}");
-            }
-        }
-    }
-
 }
