@@ -187,7 +187,7 @@ $ENV:AZURE_CLIENT_SECRET = $principalPassword
 $Env:RBACSAMPLE_STORAGE_NAME = $storageName
 $ENV:RBACSAMPLE_HUB_NAME = $hubName
 
-dotnet run --project ./src/DefaultAzureCredential.Client/DefaultAzureCredential.Client.csproj $principalAppId $principalAppId $principalAppId $principalAppId
+dotnet run --project ./src/DefaultAzureCredential.Client.CSharp/DefaultAzureCredential.Client.csproj $principalAppId $principalAppId $principalAppId $principalAppId
 
 ################################################
 # HOUSE KEEPING
