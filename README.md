@@ -1,7 +1,5 @@
 # FTA.DefaultAzureCredentialSample
 
-Sample to show the usage of DefaultAzureCredential()
-
 The DefaultAzureCredential class provided by the Azure SDKs allows applications to use different authentication methods against Azure Services.
 
 By using the DefaultAzureCredential class, you can simplify the authentication process for your application, improve its security, make it more consistent, and future-proof it against changes in authentication methods.
@@ -27,6 +25,26 @@ By configuring the parameters or options of the DefaultAzureCredential class, yo
 |Azure Power Shell|If you have authenticated to Azure by using the Connect-AzAccount cmdlet from Azure PowerShell, DefaultAzureCredential can authenticate the app to Azure by using that same account.|
 |Interactive|DefaultAzureCredential interactively authenticates you via the current system's default browser.|
 
+## Sample 
+
+### Create environment
+
+To run this sample, follow the following steps:
+- Open a command line and go to ```src/CreateEnv/```.
+- Run the ```CreateEnv.azcli``` file step by step: (TODO map step of azcli file to steps bellow)
+  - Login into Azure account.
+  - Create a storage Account and a container.
+  - Create storage container role assignment.
+  - Create Service Principal.
+  - Set environment variables for demo app.
+
+### Test Different Authtentication Types
+
+- Call a dotnet application that will test differnt authentication types. The code demonstrates two methods to authenticate to Azure Blob Storage using the DefaultAzureCredential class:
+  - Accessing Blob Storage using Service Principal.
+  - Accessing Blob Storage using CLI login.
+
+    For both methods, the code creates an instance of DefaultAzureCredential and passes the options to exclude other types of credentials. Then, tries to list the containers in the storage account. 
 
 
 ## Known Issues
